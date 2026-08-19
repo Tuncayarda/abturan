@@ -2,7 +2,7 @@ imu_node:
   ros__parameters:
     # GPIO2 (SDA, pin 3) / GPIO3 (SCL, pin 5) -> /dev/i2c-1
     i2c_bus: 1
-    i2c_address: 74       # 0x4A, ADR/PS0=GND. ADR=VCC ise 75 (0x4B).
+    i2c_address: 75       # Bu kart 0x4B'de algilandi (ADR/PS0=VCC).
                           # ROS param dosyasinda ondalik yaziyoruz: parser
                           # 0x.. gosterimini her surumde ayni cozmuyor.
     frame_id: imu_link
