@@ -64,11 +64,11 @@ class RpiCamNode(Node):
             _desc_int('SRT listener port the client connects to (srt://<pi_ip>:port)', 1024, 65535),
         ).value
         # SRT tamponu dogrudan uctan uca gecikmeye yaziliyor: 200 ms olcumde
-        # arayuzde 279 ms, 60 ms'de 147 ms gecikme demekti. Kisa tether'da
-        # paket kaybi pratikte sifir oldugu icin 60 yeterli. SRT iki ucun
+        # arayuzde 279 ms, 30 ms'de 95 ms. Kablolu tether'da RTT < 1 ms, paket
+        # kaybi pratikte sifir; 30 ms fazlasiyla guvenli. SRT iki ucun
         # BUYUGUNU kullanir — istemci tarafi da ayni seviyede olmali.
         self.latency_ms = self.declare_parameter(
-            'latency_ms', 60,
+            'latency_ms', 30,
             _desc_int('SRT latency buffer (ms)', 20, 8000),
         ).value
 

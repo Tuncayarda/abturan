@@ -43,7 +43,7 @@ DEFAULT_PARAMS = {
     'epoch': 0,
     'enabled': True,
     'port': 9003,
-    'latency_ms': 60,
+    'latency_ms': 30,
     'camera': 0,
     'width': 640,
     'height': 480,
