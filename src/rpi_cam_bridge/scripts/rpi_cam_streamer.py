@@ -52,6 +52,30 @@ DEFAULT_PARAMS = {
 }
 
 
+_option_cache = {}
+
+
+def _supports_option(option: str) -> bool:
+    """rpicam-vid bu secenegi taniyor mu (bir kez sorulur, sonuc onbellege alinir).
+
+    Tanimayan bir surume bilinmeyen bayrak vermek rpicam-vid'i hic
+    baslatmaz, yani gecikme iyilestirmesi ugruna goruntuyu tamamen
+    kaybederdik. Once soruyoruz.
+    """
+    if option in _option_cache:
+        return _option_cache[option]
+    try:
+        out = subprocess.run(['rpicam-vid', '--help'], capture_output=True,
+                             text=True, timeout=10)
+        supported = option in (out.stdout + out.stderr)
+    except (OSError, subprocess.SubprocessError):
+        supported = False
+    if not supported:
+        print(f'[streamer] {option} desteklenmiyor, atlaniyor', flush=True)
+    _option_cache[option] = supported
+    return supported
+
+
 def _atomic_write_json(path: str, payload: dict) -> None:
     tmp_path = path + '.tmp'
     with open(tmp_path, 'w') as f:
@@ -135,8 +159,25 @@ class CamStreamer:
             '--codec', 'h264', '--inline',
             '--libav-format', 'h264',
             '--bitrate', str(params['bitrate']),
-            '-o', '-',
         ]
+
+        # Pi 5'te donanim H264 kodlayici yok; --libav-format yolu libx264'e
+        # dusuyor ve varsayilanlari dosya kodlamasi icin ayarli: 3 B-frame
+        # (~3 kare yeniden siralama) ve 40 karelik lookahead (30 fps'te 1.3 s).
+        # Telelop icin bunlar dogrudan gecikme demek. tune=zerolatency B-frame
+        # ve lookahead'i sifirlar, preset=ultrafast kodlama suresini kisar.
+        #
+        # Seceneklerin varligini bir kez yokluyoruz: rpicam-apps surumu
+        # tanimiyorsa eklemek yayini tamamen oldururdu.
+        if _supports_option('--libav-video-codec-opts'):
+            cmd += ['--libav-video-codec-opts',
+                    'preset=ultrafast;tune=zerolatency']
+        # libav'in cikis tamponu 32 KB; 1 Mbit/s'te tampon dolana kadar boruya
+        # hicbir sey yazilmiyor (~256 ms). --flush her kareden sonra bosaltir.
+        if _supports_option('--flush'):
+            cmd += ['--flush']
+
+        cmd += ['-o', '-']
         print(f'[streamer] starting: {" ".join(cmd)}', flush=True)
 
         try:
