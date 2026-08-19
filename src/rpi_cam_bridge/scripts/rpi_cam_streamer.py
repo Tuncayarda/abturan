@@ -48,7 +48,12 @@ DEFAULT_PARAMS = {
     'width': 640,
     'height': 480,
     'fps': 30,
-    'bitrate': 1_000_000,
+    # All-intra kodlamada her kare tam kare: 1 Mbit/s cok dusuk kalir.
+    'bitrate': 4_000_000,
+    # I-frame periyodu. 1 = her kare I: kareler arasi bagimlilik, dolayisiyla
+    # yeniden siralama gecikmesi tamamen ortadan kalkar (AUV'deki MJPEG ile
+    # ayni mantik). Bant genisligi artar; kisa CAT hattinda sorun degil.
+    'intra_period': 1,
 }
 
 
@@ -127,7 +132,8 @@ class CamStreamer:
             self._active_params is not None
             and any(params[k] != self._active_params[k]
                     for k in ('enabled', 'port', 'latency_ms', 'camera',
-                              'width', 'height', 'fps', 'bitrate'))
+                              'width', 'height', 'fps', 'bitrate',
+                              'intra_period'))
         )
 
         if epoch == self._active_epoch and not config_changed:
@@ -161,14 +167,20 @@ class CamStreamer:
             '--bitrate', str(params['bitrate']),
         ]
 
-        # Pi 5'te donanim H264 kodlayici yok; --libav-format yolu libx264'e
-        # dusuyor ve varsayilanlari dosya kodlamasi icin ayarli: 3 B-frame
-        # (~3 kare yeniden siralama) ve 40 karelik lookahead (30 fps'te 1.3 s).
-        # Telelop icin bunlar dogrudan gecikme demek. tune=zerolatency B-frame
-        # ve lookahead'i sifirlar, preset=ultrafast kodlama suresini kisar.
+        # Pi 5'te donanim H264 kodlayici yok; --libav-format yolu yazilim
+        # libx264'e dusuyor ve varsayilanlari dosya kodlamasi icin ayarli:
+        # lookahead + B-frame'ler, yani teleop icin dogrudan gecikme.
         #
-        # Seceneklerin varligini bir kez yokluyoruz: rpicam-apps surumu
-        # tanimiyorsa eklemek yayini tamamen oldururdu.
+        # --intra 1 ile her kare I-frame olur: kareler arasi bagimlilik kalmaz,
+        # ne kodlayici ne cozucu bir sonraki kareyi bekler. AUV kameralarindaki
+        # MJPEG'in gecikmeyi neden sifirladiginin ayni sebebi. Bedeli bant
+        # genisligi.
+        #
+        # Bu yol --libav-video-codec-opts'a bagli DEGIL: o secenek olculdugu
+        # kadariyla bu rpicam-apps surumunde gecmiyor (B-frame'ler uretilmeye
+        # devam ediyor), o yuzden ayrica veriyoruz ama ona guvenmiyoruz.
+        if _supports_option('--intra'):
+            cmd += ['--intra', str(params['intra_period'])]
         if _supports_option('--libav-video-codec-opts'):
             cmd += ['--libav-video-codec-opts',
                     'preset=ultrafast;tune=zerolatency']

@@ -89,9 +89,19 @@ class RpiCamNode(Node):
             'fps', 30,
             _desc_int('Capture frame rate (fps)', 1, 60),
         ).value
+        # All-intra kodlamada (intra_period=1) her kare tam kare olduğu için
+        # 1 Mbit/s görüntüyü çok bozuyor; 4 Mbit/s makul. Kısa CAT hattında
+        # bant genişliği sınırlayıcı değil.
         self.bitrate = self.declare_parameter(
-            'bitrate', 1_000_000,
+            'bitrate', 4_000_000,
             _desc_int('H264 encoder bitrate (bits/sec)', 100_000, 20_000_000),
+        ).value
+        # I-frame periyodu. 1 = her kare I: kareler arası bağımlılık kalmaz,
+        # yeniden sıralama gecikmesi sıfırlanır. Gecikmeyi umursamayıp bant
+        # genişliği kazanmak isteyen 30 gibi bir değere çekebilir.
+        self.intra_period = self.declare_parameter(
+            'intra_period', 1,
+            _desc_int('I-frame period (1 = all-intra, lowest latency)', 1, 300),
         ).value
         self.enabled = self.declare_parameter(
             'enabled', True,
@@ -148,6 +158,8 @@ class RpiCamNode(Node):
                 self.fps = p.value
             elif name == 'bitrate':
                 self.bitrate = p.value
+            elif name == 'intra_period':
+                self.intra_period = p.value
             elif name == 'enabled':
                 self.enabled = p.value
             elif name == 'ctrl_dir':
@@ -168,6 +180,7 @@ class RpiCamNode(Node):
             'height': int(self.height),
             'fps': int(self.fps),
             'bitrate': int(self.bitrate),
+            'intra_period': int(self.intra_period),
         }
         path = os.path.join(self.ctrl_dir, PARAMS_FILE)
         tmp_path = path + '.tmp'
