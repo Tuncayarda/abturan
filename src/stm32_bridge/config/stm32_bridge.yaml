@@ -1,0 +1,28 @@
+stm32_bridge_node:
+  ros__parameters:
+    # Pi 5'te GPIO14/15 UART'i = /dev/ttyAMA0 ve config.txt icinde
+    # "dtoverlay=uart0-pi5" gerektirir. /dev/serial0 -> ttyAMA10, o Pi 5'in
+    # ayri hata ayiklama basligi; STM32 oraya BAGLI DEGIL.
+    serial_port: /dev/ttyAMA0
+    baudrate: 115200
+
+    send_rate_hz: 50.0      # ESC cercevesi (standart ESC 50 Hz bekler)
+    cmd_timeout: 0.5        # komut kesilince notre don
+    status_timeout: 1.0     # STATUS gelmezse link_ok=false
+
+    # /control/pwm_cmds araligi (thruster_allocator ile ayni olmali)
+    esc_count: 6
+    pwm_neutral: 500
+    pwm_span: 500
+
+    # ESC darbe genislikleri (us)
+    esc_min_us: 1000
+    esc_neutral_us: 1500
+    esc_max_us: 2000
+    # Pervane/kablo ters bagliysa kanal basina yon cevir (ESC1..ESC6)
+    esc_reverse: [false, false, false, false, false, false]
+
+    # 17HS3401: 1.8 derece -> 200 adim/tur.
+    # 800 adim/s ~ 240 rpm; L298N ile bu civari pratik ust sinir.
+    stepper_max_sps: 800
+    stepper_default_sps: 400

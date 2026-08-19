@@ -1,0 +1,28 @@
+services:
+  ros2:
+    build: .
+    image: ros2_humble_bringup
+    container_name: ros2_humble
+    network_mode: host
+    ipc: host
+    # privileged, host /dev'i konteynere veriyor. Iki aygit lazim:
+    #   /dev/ttyAMA0  -> STM32 UART (GPIO14/15). "dtparam=uart0=on" gerekir.
+    #   /dev/i2c-1    -> IMU (GPIO2/3).          "dtparam=i2c_arm=on" gerekir.
+    # Ikisini de ./setup_hardware.sh aciyor. Aygitlari "devices:" ile tek tek
+    # vermek daha temiz olurdu ama henuz olusmamis bir aygit compose'u
+    # baslamadan hataya dusuruyor; privileged bu yuzden tercih edildi.
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=0
+      - CAM_PORT=${CAM_PORT:-}
+      - CAM_WIDTH=${CAM_WIDTH:-}
+      - CAM_HEIGHT=${CAM_HEIGHT:-}
+      - CAM_FPS=${CAM_FPS:-}
+      - CAM_BITRATE=${CAM_BITRATE:-}
+      - STM32_PORT=${STM32_PORT:-}
+      - STM32_BAUD=${STM32_BAUD:-}
+    volumes:
+      - ./src:/root/ros2_ws/src
+      - ./cam_ctrl:/cam_ctrl
+    working_dir: /root/ros2_ws
+    restart: unless-stopped

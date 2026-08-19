@@ -1,0 +1,30 @@
+imu_node:
+  ros__parameters:
+    # GPIO2 (SDA, pin 3) / GPIO3 (SCL, pin 5) -> /dev/i2c-1
+    i2c_bus: 1
+    i2c_address: 74       # 0x4A, ADR/PS0=GND. ADR=VCC ise 75 (0x4B).
+                          # ROS param dosyasinda ondalik yaziyoruz: parser
+                          # 0x.. gosterimini her surumde ayni cozmuyor.
+    frame_id: imu_link
+    rate_hz: 100.0        # yonganin rapor akis frekansi
+
+    # rotation_vector          : 9 eksen (manyetometre dahil), yaw KAYMAZ
+    # game_rotation_vector     : manyetometresiz; motor/miknatis gurultusune
+    #                            bagisik ama yaw yavasca kayar
+    # geomagnetic_rotation_vector : dusuk guc, daha dusuk hassasiyet
+    # none                     : sadece /imu/data_raw yayinla
+    orientation_mode: rotation_vector
+
+    publish_mag: false    # /imu/mag (sensor_msgs/MagneticField)
+
+    soft_reset_on_start: true
+
+    # Yonelim kovaryansi icin yonganin kendi dogruluk kestirimini kullan.
+    # game_rotation_vector modunda bu alan gelmiyor; orada asagidaki
+    # orientation_stddev'e dusuluyor.
+    use_reported_accuracy: true
+
+    accel_stddev: 0.03
+    gyro_stddev: 0.003
+    orientation_stddev: 0.02
+    mag_stddev: 1.0       # uT

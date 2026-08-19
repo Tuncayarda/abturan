@@ -1,0 +1,90 @@
+joy_to_wrench_node:
+  ros__parameters:
+    joy_topic: /ui/joy_cmd_vel
+    wrench_topic: /control/wrench
+    deadzone: 0.1
+
+    axis_surge: 3
+    axis_sway: 0
+    axis_yaw: 1
+    axis_r2: 5
+    axis_l2: 4
+
+    scale_fx: 1.0
+    scale_fy: 1.0
+    scale_fz: 1.0
+    scale_tz: 1.0
+
+thruster_allocator_node:
+  ros__parameters:
+    wrench_topic: /control/wrench
+    pwm_topic: /control/pwm_cmds
+    # STM32'de 6 ESC PWM cikisi var (PB0, PB1, PB6, PB7, PB8, PB9),
+    # bu yuzden itici sayisi 6. Cikan dizinin i. elemani ESC(i+1)'e gider.
+    thruster_count: 6
+    smoothing_alpha: 0.6
+
+    # 6x6 matris
+    # satirlar: Fx, Fy, Fz, Tx, Ty, Tz
+    # kolonlar: ESC1..ESC6  (STM32 PB0, PB1, PB6, PB7, PB8, PB9)
+    #
+    # Yerlesim:  ESC1-2 = yatay (surge + yaw), ESC3-6 = dusey (heave + roll + pitch)
+    # Not: Fy satiri tamamen sifir — bu yerlesimde yana kayma (sway) yetkisi
+    # YOK. Joystick'ten sway gelse bile matris onu iticiye dagitamaz; yana
+    # hareket isteniyorsa yatay iticilerin vektorel (45 derece) yerlestirilmesi
+    # ve bu satirin doldurulmasi gerekir.
+
+    allocation_matrix:
+      # Fx (surge -> ileri/geri)
+      - 1.0
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+      # Fy (sway -> yana) — bu yerlesimde yetki yok
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+      # Fz (heave -> yukari/asagi)
+      - 0.0
+      - 0.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+
+      # Tx (roll)
+      - 0.0
+      - 0.0
+      - 1.0
+      - -1.0
+      - 1.0
+      - -1.0
+
+      # Ty (pitch)
+      - 0.0
+      - 0.0
+      - 1.0
+      - 1.0
+      - -1.0
+      - -1.0
+
+      # Tz (yaw -> donme)
+      - -1.0
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # stm32_bridge bu araligi 1000-2000 us darbeye cevirir
+    # (pwm_min/neutral/max <-> esc_min_us/esc_neutral_us/esc_max_us).
+    pwm_min: 0
+    pwm_neutral: 500
+    pwm_max: 1000
