@@ -10,9 +10,10 @@ stm32_bridge_node:
     cmd_timeout: 0.5        # komut kesilince notre don
     status_timeout: 1.0     # STATUS gelmezse link_ok=false
 
-    # /control/pwm_cmds araligi (thruster_allocator ile ayni olmali)
+    # /control/pwm_cmds araligi — dogrudan ESC darbesi tasinir: 1000-2000 us,
+    # 1500 notr. thruster_allocator ve minirov_joy_node ayni olcegi kullanir.
     esc_count: 6
-    pwm_neutral: 500
+    pwm_neutral: 1500
     pwm_span: 500
 
     # ESC darbe genislikleri (us)

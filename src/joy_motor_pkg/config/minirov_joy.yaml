@@ -1,0 +1,134 @@
+minirov_joy_node:
+  ros__parameters:
+    # Arayuz (up-yasin) joystick hedefi "minirov" iken bu konuya yayin yapar.
+    joy_topic: /ui/minirov/joy_cmd_vel
+    pwm_topic: /control/pwm_cmds
+
+    # Arayuzun Joy eksen sirasi: [lx, ly, rx, ry, l2, r2]
+    #   sag cubuk dikey  = 3 -> ileri/geri
+    #   sol cubuk yatay  = 0 -> saga/sola donme
+    axis_surge: 3
+    axis_yaw: 0
+    invert_surge: true     # SDL'de cubugu yukari itmek negatif deger uretir
+    invert_yaw: false
+    deadzone: 0.08
+
+    # ── Yana gidis: tetikler ────────────────────────────────────────
+    # DualShock adlandirmasi: l2 = eksen 4, r2 = eksen 5, ikisi de 0..1
+    # (analog — ne kadar basarsan o kadar guc).
+    axis_right: 5          # R2 -> saga
+    axis_left: 4           # L2 -> sola
+    trigger_deadzone: 0.05
+
+    # Saga giderken 1 ve 5, sola giderken 0 ve 4 ayni yonde calisir. Iki tetige birden basilirsa iki takim da calisir,
+    # yanal itki birbirini goturur.
+    mix_lat_right:
+      - 0.0   # 0  on sag
+      - 1.0   # 1  on sol   <- saga giderken calisir
+      - 0.0   # 2  orta sol
+      - 0.0   # 3  orta sag
+      - 0.0   # 4  arka sag
+      - 1.0   # 5  arka sol <- saga giderken calisir
+
+    mix_lat_left:
+      - 1.0   # 0  on sag   <- sola giderken calisir
+      - 0.0   # 1  on sol
+      - 0.0   # 2  orta sol
+      - 0.0   # 3  orta sag
+      - 1.0   # 4  arka sag <- sola giderken calisir
+      - 0.0   # 5  arka sol
+
+    # Motor gruplari:
+    #   on   : 0 (sag), 1 (sol)
+    #   orta : 2 (sol), 3 (sag)
+    #   arka : 4 (sag), 5 (sol)
+    # Taraf eslesmesi: 0-4 ayni tarafta, 1-5 ayni tarafta.
+    # Dizinin sirasi her zaman kanal sirasidir: [0, 1, 2, 3, 4, 5].
+    mix_surge:
+      - 1.0   # 0  on sag
+      - 1.0   # 1  on sol
+      - 0.0   # 2  orta sol
+      - 0.0   # 3  orta sag
+      - 1.0   # 4  arka sag
+      - 1.0   # 5  arka sol
+
+    # Donme: sol cubuk yatay. Ileri/geri hala dort motora ESIT guc verir;
+    # farkli yon yalnizca donmede olur.
+    #   saga (lx > 0) -> 0 ve 4 duz,  1 ve 5 ters
+    #   sola (lx < 0) -> tam tersi (eksen negatif oldugu icin kendiliginden)
+    mix_yaw:
+      - 1.0   # 0  on sag   duz
+      - -1.0  # 1  on sol   ters
+      - 0.0   # 2  orta sol
+      - 0.0   # 3  orta sag
+      - 1.0   # 4  arka sag duz
+      - -1.0  # 5  arka sol ters
+
+    # ── Tusla kademeli guc: ORTA ikili (2,3) ────────────────────────
+    # Bir BASIS darbeyi button_step_us kadar kaydirir ve deger birikir.
+    # Tus basili tutulursa button_hold_delay sonrasinda her
+    # button_hold_interval'da yalnizca button_hold_step_us eklenir —
+    # tutarak ince ayar, basip birakarak kaba ayar.
+    #   LB (9)  -> +adim      RB (10) -> -adim
+    # Adimi arayuzden degistirebilirsin (Ayarlar > miniROV Connection >
+    # "Tus adimi LB/RB"); oradaki alan /ui/minirov/pwm_step'e yazar.
+    button_step_us: 20
+    button_hold_step_us: 5      # basili tutarken tekrar basina
+    button_hold_delay: 0.4      # bu kadar tutunca surukleme baslar (s)
+    # Joy 30 Hz (33 ms) geldigi icin tekrar araligi mesaj sinirlarina
+    # yuvarlanir; 0.08 pratikte ~100 ms'e oturur -> ~50 us/s.
+    button_hold_interval: 0.08
+    button_up: 9      # LB
+    button_down: 10   # RB
+    step_topic: /ui/minirov/pwm_step
+
+    # Kayma yalnizca ORTA ikiliye gider; yatay takim (0,1,4,5) sadece
+    # cubukla surulur.
+    mix_step:
+      - 0.0   # 0  on sag
+      - 0.0   # 1  on sol
+      - 1.0   # 2  orta sol
+      - 1.0   # 3  orta sag
+      - 0.0   # 4  arka sag
+      - 0.0   # 5  arka sol
+
+    # Tezgah testinde gucu kismak icin dusur (0.5 = yarim guc).
+    max_thrust: 1.0
+
+    # Cikis dogrudan ESC darbesi: 1500 +- 500 = 1000..2000 us.
+    esc_neutral_us: 1500
+    esc_span_us: 500
+
+    # Rampa: komut ani degil, saniyede su kadar us tasinir.
+    #   400 us/s  -> notrden tam guce ~1.25 s
+    #   1000 us/s -> tam gucten notre ~0.5 s (birakinca daha cabuk dursun)
+    ramp_up_us_per_s: 400.0
+    ramp_down_us_per_s: 1000.0
+    publish_rate_hz: 50.0
+
+    joy_timeout: 0.5
+    # ── Orta ikiliyi ters yonlerde surme (egme) ────────────────────
+    # Kullanicinin gordugu numaralar tarayici Gamepad API standardinda:
+    # b15 = D-pad SAG, b14 = D-pad SOL. Arayuzun Joy dizisi SDL sirali
+    # oldugu icin buradaki indeksler 14 (sag) ve 13 (sol).
+    #   D-pad SAG -> 2 ileri, 3 geri
+    #   D-pad SOL -> 2 geri,  3 ileri
+    # Ikisine birden basilirsa toplam sifir.
+    tilt_button_pos: 14   # D-pad SAG
+    tilt_button_neg: 13   # D-pad SOL
+    tilt_level: 1.0       # basiliyken uygulanan guc (0-1)
+
+    mix_tilt:
+      - 0.0   # 0  on sag
+      - 0.0   # 1  on sol
+      - 1.0   # 2  orta sol
+      - -1.0  # 3  orta sag
+      - 0.0   # 4  arka sag
+      - 0.0   # 5  arka sol
+
+    # X tusu her seyi sifirlar: motorlar notre, birikmis tus kaymasi sifir.
+    # Xbox X, arayuz dizisinde 2. numarali tus. -1 = kapali.
+    stop_button: 2
+
+    # Basili tutma sarti istersen: 9 = L1, 10 = R1. -1 = kapali.
+    deadman_button: -1

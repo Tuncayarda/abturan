@@ -68,12 +68,14 @@ class ThrusterAllocatorNode(Node):
 			_desc('6xN allocation matrix (Fx,Fy,Fz,Tx,Ty,Tz x thruster count), row-major flat array'),
 		)
 
-		self.declare_parameter('pwm_min', 0,
-			_desc_int('Minimum PWM value', 0, 2000))
-		self.declare_parameter('pwm_neutral', 500,
-			_desc_int('Neutral (zero thrust) PWM value', 0, 2000))
-		self.declare_parameter('pwm_max', 1000,
-			_desc_int('Maximum PWM value', 0, 2000))
+		# Cikis dogrudan ESC darbe genisligi (us): 1000..2000, 1500 notr.
+		# stm32_bridge ayni araligi bekler (pwm_neutral/pwm_span).
+		self.declare_parameter('pwm_min', 1000,
+			_desc_int('Minimum PWM value (us)', 0, 2000))
+		self.declare_parameter('pwm_neutral', 1500,
+			_desc_int('Neutral (zero thrust) PWM value (us)', 0, 2000))
+		self.declare_parameter('pwm_max', 2000,
+			_desc_int('Maximum PWM value (us)', 0, 2000))
 
 		self.thruster_count = int(self.get_parameter('thruster_count').value)
 		self.prev_pwm = [int(self.get_parameter('pwm_neutral').value)] * self.thruster_count
@@ -87,8 +89,8 @@ class ThrusterAllocatorNode(Node):
 			self.wrench_callback,
 			10,
 		)
-		# Consumer: stm32_bridge_node, which maps pwm_min..pwm_max onto the
-		# 1000-2000 us ESC pulse and forwards it over UART to the STM32.
+		# Consumer: stm32_bridge_node, which forwards the 1000-2000 us ESC
+		# pulse over UART to the STM32.
 		self.publisher = self.create_publisher(Int32MultiArray, pwm_topic, 10)
 
 		self.get_logger().info(

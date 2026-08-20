@@ -14,6 +14,11 @@ def generate_launch_description():
         'config',
         'joy_wrench_allocator.yaml',
     )
+    minirov_joy_config = os.path.join(
+        get_package_share_directory('joy_motor_pkg'),
+        'config',
+        'minirov_joy.yaml',
+    )
     stm32_config = os.path.join(
         get_package_share_directory('stm32_bridge'),
         'config',
@@ -122,8 +127,22 @@ def generate_launch_description():
             output='screen',
         ),
 
+        # ── miniROV: joystick → ESC (rampali, dogrudan surus) ──────
+        # Arayuzun joystick hedefi "minirov" iken /ui/minirov/joy_cmd_vel'e
+        # yayin yapiyor; bu node sag cubugu on (0,1) + arka (4,5) motorlara
+        # rampalayarak dagitir ve /control/pwm_cmds'e 1000-2000 us yazar.
+        # Komut yokken yayini biraktigi icin allocator ile carpismaz.
+        Node(
+            package='joy_motor_pkg',
+            executable='minirov_joy',
+            name='minirov_joy_node',
+            parameters=[minirov_joy_config],
+            output='screen',
+        ),
+
         # ── STM32 actuator link (UART) ──────────────────────────────
-        # Last hop of the control chain: /control/pwm_cmds (6 ch) plus the
+        # Last hop of the control chain: /control/pwm_cmds (6 ch, 1000-2000 us)
+        # plus the
         # LED and stepper topics are framed and sent to the STM32, which
         # owns all the real actuator timing (6 ESC PWM, 4-wire stepper, LED).
         Node(

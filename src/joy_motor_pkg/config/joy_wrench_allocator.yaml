@@ -83,8 +83,8 @@ thruster_allocator_node:
       - 0.0
       - 0.0
 
-    # stm32_bridge bu araligi 1000-2000 us darbeye cevirir
-    # (pwm_min/neutral/max <-> esc_min_us/esc_neutral_us/esc_max_us).
-    pwm_min: 0
-    pwm_neutral: 500
-    pwm_max: 1000
+    # Cikis dogrudan ESC darbe genisligi (us). stm32_bridge ayni araligi
+    # bekler: pwm_neutral 1500 / pwm_span 500 <-> esc_min/neutral/max_us.
+    pwm_min: 1000
+    pwm_neutral: 1500
+    pwm_max: 2000
