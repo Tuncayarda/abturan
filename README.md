@@ -60,9 +60,11 @@ Yani video, ROS/container çökse bile akmaya devam eder.
 Kontrol zinciri:
 
 ```
-/ui/joy_cmd_vel  →  joy_to_wrench  →  /control/wrench
-                 →  thruster_allocator  →  /control/pwm_cmds  (6 kanal, 0-1000)
-                 →  stm32_bridge  →  UART  →  STM32  →  ESC 1-6
+/ui/joy_cmd_vel          →  joy_to_wrench  →  /control/wrench
+                         →  thruster_allocator ─┐
+                                                ├→ /control/pwm_cmds (6 kanal,
+/ui/minirov/joy_cmd_vel  →  minirov_joy_node ───┘   1000-2000 µs, 1500 nötr)
+                         →  stm32_bridge  →  UART  →  STM32  →  ESC 1-6
 ```
 
 ---
@@ -73,7 +75,7 @@ Kontrol zinciri:
 |-------|-----|--------|
 | `up_bringup` | ament_cmake | Ana launch dosyası (her şeyi başlatır) |
 | `rpi_cam_bridge` | ament_python | `rpi_cam_node` (kamera kontrol + throughput) ve host streamer scripti |
-| `joy_motor_pkg` | ament_python | joystick → wrench → **6 ESC** PWM dağıtımı |
+| `joy_motor_pkg` | ament_python | joystick → wrench → **6 ESC** PWM dağıtımı; ayrıca `minirov_joy_node` (miniROV için rampalı doğrudan sürüş) |
 | `stm32_bridge` | ament_python | ROS ↔ STM32 UART köprüsü (ESC, step motor, LED) |
 | `imu_bridge` | ament_python | BNO08x (SHTP/SH-2) → `sensor_msgs/Imu` |
 
@@ -189,7 +191,8 @@ ros2 launch up_bringup bringup.launch.py stm32_port:=/dev/ttyUSB0 stm32_baud:=11
 |------|-----|--------|
 | `/ui/joy_cmd_vel` | `sensor_msgs/Joy` | arayüzden joystick |
 | `/control/wrench` | `geometry_msgs/Wrench` | istenen kuvvet/tork |
-| `/control/pwm_cmds` | `std_msgs/Int32MultiArray` | 6 kanal, 0-1000 (500 = nötr) |
+| `/ui/minirov/joy_cmd_vel` | `sensor_msgs/Joy` | arayüzden joystick (hedef = miniROV) |
+| `/control/pwm_cmds` | `std_msgs/Int32MultiArray` | 6 kanal, 1000-2000 µs (1500 = nötr) |
 | `/control/led` | `std_msgs/Bool` | LED (STM32 PB12) |
 | `/control/stepper/velocity` | `std_msgs/Float32` | adım/s, işaretli |
 | `/control/stepper/position` | `std_msgs/Int32` | mutlak hedef adım |
@@ -422,9 +425,168 @@ ESC1-2 yatay (surge + yaw), ESC3-6 dikey (heave + roll + pitch).
 > sway gelse bile matris onu iticiye dağıtamaz. Yana hareket isteniyorsa yatay
 > iticilerin vektörel (45°) yerleştirilmesi ve bu satırın doldurulması gerekir.
 
-`/control/pwm_cmds` aralığı (0-1000, 500 nötr) `stm32_bridge` tarafından
-1000-2000 µs darbeye çevrilir. Pervane ters bağlıysa YAML'de
+`/control/pwm_cmds` doğrudan ESC darbe genişliğini taşır: **1000-2000 µs,
+1500 nötr.** `thruster_allocator`, `minirov_joy_node` ve `stm32_bridge` aynı
+ölçeği kullanır. Pervane ters bağlıysa YAML'de
 `esc_reverse: [false, true, ...]` ile kanal bazında çevirebilirsin.
+
+---
+
+## Motor grupları (isimlendirme)
+
+Bu depoda motorlar **0'dan 5'e** numaralanır ve üç gruba ayrılır. Kod, YAML ve
+arayüz aynı adları kullanır:
+
+| Grup | İndeksler | Not |
+|------|-----------|-----|
+| **ön** (front) | 0, 1 | 0 = ön sağ, 1 = ön sol |
+| **orta** (mid) | 2, 3 | 2 = orta sol, 3 = orta sağ |
+| **arka** (rear) | 4, 5 | 4 = arka sağ, 5 = arka sol |
+
+**Taraf eşleşmesi: 0-4 aynı tarafta, 1-5 aynı tarafta.** Dönüş ve yana gidiş
+karışımları bu çiftlere göre yazılır. Sol/sağ etiketleri yalnızca tarif
+içindir — davranış her zaman indeks listelerine bakar.
+
+İndeks doğrudan `/control/pwm_cmds` dizisindeki sıradır ve STM32'de
+ESC(i+1) çıkışına (PB0, PB1, PB6, PB7, PB8, PB9) düşer.
+
+> `thruster_allocator`'ın dağıtım matrisi (yukarıdaki tablo) **eski** bir
+> yerleşim varsayıyor: ESC1-2 yatay, ESC3-6 dikey. `minirov_joy_node` ise
+> yatay takımı ön + arka (0, 1, 4, 5) olarak sürüyor. İki varsayım aynı anda
+> doğru olamaz; gövde yerleşimi kesinleşince matrisin de güncellenmesi
+> gerekiyor.
+
+---
+
+## miniROV: joystick → ESC (rampalı)
+
+`minirov_joy_node`, arayüzün miniROV hedefiyle yayınladığı
+`/ui/minirov/joy_cmd_vel` konusunu dinler ve **sağ analog çubuğun dikey
+eksenini** yatay takıma (ön 0-1 + arka 4-5) dağıtır. Orta ikili (2-3)
+şimdilik nötrde durur.
+
+| Girdi | Etki |
+|-------|------|
+| sağ çubuk yukarı/aşağı | ileri / geri — **dört motor da eşit güç** |
+| **sol çubuk sağ/sol** | sağa / sola dönüş — 0,4 düz, 1,5 ters (solda tersi) |
+| **R2** | sağa git — **1 ve 5** aynı yönde (analog) |
+| **L2** | sola git — **0 ve 4** aynı yönde (analog) |
+| **D-pad sağ / sol** | orta ikiliyi (2,3) **ters yönlerde** sürer |
+| **X** | acil sıfırla — altı motor da nötre, birikmiş kayma silinir |
+| LB / RB | **orta ikilinin (2,3)** darbesini adım adım artırır / azaltır (birikir) |
+
+**İleri/geride dört yatay motor da aynı darbeyi alır** — eşit güç. Farklı yön
+yalnızca **dönüşte** olur; o da sol çubuğun yatay ekseninden gelir:
+
+| Sol çubuk | 0 (ön sağ) | 4 (arka sağ) | 1 (ön sol) | 5 (arka sol) |
+|-----------|--------------|------------|--------------|------------|
+| **sağa** | düz | düz | ters | ters |
+| **sola** | ters | ters | düz | düz |
+
+Katsayılar `mix_yaw` (sağa dönüş için yazılır; sola dönüşte eksen negatif
+olduğu için işaretler kendiliğinden çevrilir). Analog: yarım çubuk yarım güç.
+İleri giderken dönülürse komutlar toplanır ve taşarsa hepsi aynı oranda
+küçültülür — tam ileri + tam sağ → 0,4 tam güç, 1,5 nötr.
+
+Ayarlar: `src/joy_motor_pkg/config/minirov_joy.yaml`.
+
+**Rampa.** Komut ani uygulanmaz: her motorun darbesi hedefe doğru saniyede en
+fazla `ramp_up_us_per_s` (nötrden uzaklaşırken, varsayılan 400 µs/s → tam güce
+~1.25 s) ya da `ramp_down_us_per_s` (nötre dönerken, varsayılan 1000 µs/s →
+~0.5 s) kadar taşınır. Node sabit 50 Hz döner, çubuk hareketsizken bile
+rampayı ilerletir.
+
+**Yana gidiş — tetikler.** Yön değişince çalışan motorlar da değiştiği için
+tek bir çift yönlü katsayı yetmiyor; iki ayrı karışım tutuluyor:
+
+| Tetik | Joy ekseni | Çalışan motorlar |
+|-------|-----------|------------------|
+| **R2** (sağa) | 5 | `mix_lat_right` → **1 ve 5**, aynı yönde |
+| **L2** (sola) | 4 | `mix_lat_left` → **0 ve 4**, aynı yönde |
+
+Tetikler **analog**: yarım basınca yarım güç (ölçüm: R2 %50 → 1737 µs).
+İkisine birden basılırsa iki takım da çalışır — yanal itki birbirini götürür,
+özel bir kural gerekmiyor.
+
+> Arayüzün Joy dizisinde DualShock adlandırması var: **l2 = eksen 4, r2 =
+> eksen 5** ve ikisi de **0..1** aralığında. Ham Linux `joy` sürücüsü
+> tetikleri 1..−1 verir; o kaynakta motorların kendiliğinden çalışmaması için
+> node negatif değeri "basılmamış" sayar.
+
+Çubuk ve tetik aynı anda kullanılırsa komutlar toplanır ve gerekirse hepsi
+aynı oranda küçültülür (yön korunur): tam ileri + tam R2 → **1 ve 5** tam güç,
+0 ve 4 yarım.
+
+**Orta ikiliyi eğme — D-pad sağ/sol.** İki motor zıt yönde sürülür:
+
+| Tuş | Joy indeksi | Motor 2 | Motor 3 |
+|-----|-------------|---------|---------|
+| D-pad **sağ** | 14 | ileri (+) | geri (−) |
+| D-pad **sol** | 13 | geri (−) | ileri (+) |
+
+Basılı olduğu sürece `tilt_level` (varsayılan 1.0 = tam güç) uygulanır, rampa
+üzerinden. İkisine birden basılırsa toplam sıfır. Katsayılar `mix_tilt` ile
+değiştirilir; yön ters gelirse işaretleri çevirmek yeter.
+
+LB/RB ile biriktirilen kayma bunun üstüne biner: −60 µs kayma + D-pad sağ →
+`[..., 1940, 1000, ...]` (motor 3 alt sınıra dayanır).
+
+> **Tuş numaraları.** Kullanıcının gördüğü numaralar tarayıcı Gamepad API
+> standardında (b4/b5 = LB/RB, b14/b15 = D-pad sol/sağ). Arayüzün Joy dizisi
+> SDL sıralı olduğu için indeksler farklı: LB = 9, RB = 10, D-pad sol = 13,
+> sağ = 14.
+
+**Tuşla kademeli güç — orta ikili (2,3).** Omuz tuşları **orta motorların**
+darbesini adım adım kaydırır ve değer **birikir**. Yatay takıma (0,1,4,5)
+dokunmaz; orası yalnızca çubukla sürülür.
+
+| Tuş | Joy indeksi | Etki |
+|-----|-------------|------|
+| **LB** | 9 | +`button_step_us` (varsayılan 20 µs) |
+| **RB** | 10 | −`button_step_us` |
+
+Bir *basış* tam adımdır (20 µs). Tuş **basılı tutulursa**
+`button_hold_delay` (0.4 s) sonrasında her `button_hold_interval`'da (0.08 s)
+`button_hold_step_us` (5 µs) sürüklenir — **~50 µs/s**, yani saniyede iki
+buçuk basış kadar. Basıp bırakarak kaba, tutarak ince ayar yaparsın.
+
+> Joy 30 Hz (33 ms) geldiği için tekrar aralığı mesaj sınırlarına yuvarlanır:
+> 0.10 istemek pratikte 132 ms'e düşüyordu, 0.08 ise ~100 ms'e oturuyor.
+> Hızı değiştirirken bunu hesaba kat.
+
+Birikim ±500 µs ile sınırlı, yani darbe 1000-2000 dışına çıkamaz. Hangi
+motorlara gideceği `mix_step` ile belirlenir (varsayılan `[0,0,1,1,0,0]`).
+
+Adım büyüklüğü **arayüzden** değiştirilir: Ayarlar → miniROV Connection →
+*Tuş adımı LB/RB (µs)*. Arayüz değeri `/ui/minirov/pwm_step`
+(`std_msgs/Int32`) konusuna yazar, node anında uygular — yeniden başlatma
+gerekmez. Terminalden de olur:
+
+```bash
+ros2 topic pub --once /ui/minirov/pwm_step std_msgs/Int32 "{data: 50}"
+```
+
+**X — acil sıfırla.** `stop_button` (varsayılan 2 = Xbox X tuşu) basılıyken
+altı motor da **rampasız**, anında nötre çekilir ve birikmiş tuş kayması
+silinir; çubuk/tetik okunmaz. Bırakınca normal kontrol kaldığı yerden devam
+eder. Rampa ani *güç vermeyi* engellemek için var — durmak için beklemenin
+anlamı yok, nötr zaten güvenli hâl.
+
+**Güvenlik.**
+- `joy_timeout` (0.5 s) boyunca Joy gelmezse hedef nötre çekilir **ve birikmiş
+  tuş kayması sıfırlanır** — hat koptuktan sonra araç itmeye devam etmesin.
+- `deadman_button` kullanılıyorsa tuş bırakıldığında kayma yine sıfırlanır.
+- Nötre inildikten sonra node yayını bırakır — böylece aynı konuya yazan
+  `thruster_allocator` ile çakışmaz. Yeni Joy gelince yayın geri başlar.
+- `deadman_button` ≥ 0 yapılırsa (arayüz dizilimi: 9 = L1, 10 = R1) o tuş
+  basılı değilken hedef nötrdür.
+- Tezgah testinde gücü kısmak için `max_thrust` (0-1).
+
+Tek başına çalıştırmak için:
+
+```bash
+ros2 launch joy_motor_pkg minirov_joy.launch.py
+```
 
 ---
 

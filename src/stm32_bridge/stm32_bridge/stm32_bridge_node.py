@@ -18,7 +18,7 @@ Hat:  Pi GPIO14 (TXD, pin 8)  -> STM32 PA3 (USART2_RX)
 
 Abone oldugu konular
 --------------------
-/control/pwm_cmds          std_msgs/Int32MultiArray  6 kanal, 0-1000 (500 notr)
+/control/pwm_cmds          std_msgs/Int32MultiArray  6 kanal, 1000-2000 us (1500 notr)
 /control/led               std_msgs/Bool             LED (STM32 PB12)
 /control/stepper/velocity  std_msgs/Float32          adim/s, isaretli
 /control/stepper/position  std_msgs/Int32            hedef adim (mutlak)
@@ -105,12 +105,13 @@ class Stm32BridgeNode(Node):
             _desc_int('ESC kanal sayisi (STM32 firmware ile ayni)', 1, 6),
         ).value
         self.pwm_neutral = self.declare_parameter(
-            'pwm_neutral', 500,
+            'pwm_neutral', 1500,
             _desc_int('Gelen /control/pwm_cmds icinde notr degeri', 0, 2000),
         ).value
         self.pwm_span = self.declare_parameter(
             'pwm_span', 500,
-            _desc_int('Notrden tam guce kadar olan aralik (0-1000 icin 500)', 1, 2000),
+            _desc_int('Notrden tam guce kadar olan aralik (1000-2000 icin 500)',
+                      1, 2000),
         ).value
         self.esc_min_us = self.declare_parameter(
             'esc_min_us', proto.ESC_MIN_US,
@@ -282,7 +283,8 @@ class Stm32BridgeNode(Node):
     # Abonelikler
     # ------------------------------------------------------------------
     def _pwm_to_us(self, value, channel):
-        """0-1000 (500 notr) -> 1000-2000 us. Asimetrik aralik da destekli."""
+        """1000-2000 us (1500 notr) gelir, ayni araliga esler. Farkli bir
+        olcek kullanilirsa pwm_neutral/pwm_span ile ayarlanir."""
         norm = (float(value) - self.pwm_neutral) / float(self.pwm_span)
         norm = proto.clamp(norm, -1.0, 1.0)
         if channel < len(self.esc_reverse) and self.esc_reverse[channel]:

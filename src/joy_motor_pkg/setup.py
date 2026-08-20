@@ -31,6 +31,7 @@ setup(
         'console_scripts': [
             'joy_motor = joy_motor_pkg.JoyMotorNode:main',
             'joy_to_wrench = joy_motor_pkg.joy_to_wrench_node:main',
+            'minirov_joy = joy_motor_pkg.minirov_joy_node:main',
             'thruster_allocator = joy_motor_pkg.thruster_allocator_node:main',
         ],
     },
